@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown to Rich Text Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%);
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.03) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(255, 255, 255, 0.02) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 600;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            opacity: 0.8;
+            font-size: 1.1rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            min-height: 600px;
+        }
+
+        .input-section, .output-section {
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-section {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .output-section {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+
+        #markdownInput {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 20px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+            transition: all 0.3s ease;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        #markdownInput:focus {
+            border-color: rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.05);
+        }
+
+        #markdownInput::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+            font-style: italic;
+        }
+
+        #richTextOutput {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 20px;
+            overflow-y: auto;
+            font-size: 16px;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .controls {
+            padding: 20px 30px;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-primary {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .btn-primary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Rich text styles */
+        #richTextOutput h1 {
+            font-size: 2.2rem;
+            margin: 20px 0 15px 0;
+            color: rgba(255, 255, 255, 0.95);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+            padding-bottom: 10px;
+        }
+
+        #richTextOutput h2 {
+            font-size: 1.8rem;
+            margin: 18px 0 12px 0;
+            color: rgba(255, 255, 255, 0.9);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 8px;
+        }
+
+        #richTextOutput h3 {
+            font-size: 1.5rem;
+            margin: 16px 0 10px 0;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        #richTextOutput h4, #richTextOutput h5, #richTextOutput h6 {
+            margin: 14px 0 8px 0;
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        #richTextOutput p {
+            margin: 12px 0;
+            text-align: justify;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        #richTextOutput ul, #richTextOutput ol {
+            margin: 12px 0;
+            padding-left: 30px;
+        }
+
+        #richTextOutput li {
+            margin: 6px 0;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        /* Nested lists */
+        #richTextOutput ul ul, #richTextOutput ol ol, 
+        #richTextOutput ul ol, #richTextOutput ol ul {
+            margin: 6px 0;
+            padding-left: 25px;
+        }
+
+        /* Preserve indented content */
+        #richTextOutput .indented {
+            margin-left: 20px;
+            padding-left: 15px;
+            border-left: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Better spacing for consecutive elements */
+        #richTextOutput > *:first-child {
+            margin-top: 0;
+        }
+
+        #richTextOutput > *:last-child {
+            margin-bottom: 0;
+        }
+
+        #richTextOutput blockquote {
+            margin: 15px 0;
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-left: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 0 8px 8px 0;
+            font-style: italic;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        #richTextOutput code {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+            color: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #richTextOutput pre {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #richTextOutput pre code {
+            background: none;
+            padding: 0;
+            color: rgba(255, 255, 255, 0.85);
+            border: none;
+        }
+
+        #richTextOutput a {
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: underline;
+            text-decoration-color: rgba(255, 255, 255, 0.5);
+        }
+
+        #richTextOutput a:hover {
+            color: rgba(255, 255, 255, 1);
+            text-decoration-color: rgba(255, 255, 255, 0.8);
+        }
+
+        #richTextOutput table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #richTextOutput th, #richTextOutput td {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 12px;
+            text-align: left;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        #richTextOutput th {
+            background: rgba(255, 255, 255, 0.08);
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        #richTextOutput strong {
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        #richTextOutput em {
+            font-style: italic;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        #richTextOutput hr {
+            margin: 25px 0;
+            border: none;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 1px;
+        }
+
+        .copy-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.9);
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            opacity: 0;
+            transform: translateX(100px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .copy-notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        #richTextOutput del {
+            text-decoration: line-through;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        #richTextOutput img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 10px 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #richTextOutput thead th {
+            background: rgba(255, 255, 255, 0.12);
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        #richTextOutput tbody tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Custom scrollbar */
+        #richTextOutput::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #richTextOutput::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 3px;
+        }
+
+        #richTextOutput::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        #richTextOutput::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 0;
+            }
+
+            .input-section {
+                border-right: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Markdown to Rich Text Converter</h1>
+            <p>Transform your markdown into beautiful rich text instantly</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="input-section">
+                <div class="section-title">Markdown Input</div>
+                <textarea 
+                    id="markdownInput" 
+                    placeholder="# Welcome to Markdown Converter
+
+## Features
+- **Bold text** and *italic text*
+- Nested lists:
+  - Sub-item 1
+  - Sub-item 2
+    - Deep nested item
+- Numbered lists:
+  1. First item
+  2. Second item
+     - Mixed nested item
+- Links: [Google](https://google.com)
+- Code blocks and `inline code`
+- Tables, blockquotes, and more!
+
+> Start typing your markdown here...
+
+    Indented content is preserved
+    Multiple lines of indented text
+
+| Column 1 | Column 2 |
+|----------|----------|
+| Cell 1   | Cell 2   |"
+                ></textarea>
+            </div>
+            
+            <div class="output-section">
+                <div class="section-title">Rich Text Output</div>
+                <div id="richTextOutput"></div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn btn-primary" onclick="convertMarkdown()" title="Ctrl/Cmd + Enter">Convert</button>
+            <button class="btn btn-secondary" onclick="clearAll()" title="Ctrl/Cmd + K">Clear All</button>
+            <button class="btn btn-success" onclick="copyRichText()" title="Ctrl/Cmd + Shift + C">Copy Rich Text</button>
+            <button class="btn" onclick="exportHTML()" title="Export as HTML file">Export HTML</button>
+        </div>
+    </div>
+
+    <div class="copy-notification" id="copyNotification">
+        Rich text copied to clipboard!
+    </div>
+
+    <script>
+        // Enhanced markdown parser with better formatting control
+        function parseMarkdown(markdown) {
+            if (!markdown || !markdown.trim()) return '';
+            
+            let html = markdown;
+            
+            // Normalize line endings first
+            html = html.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            
+            // Escape HTML entities first
+            html = html.replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;');
+            
+            // Code blocks (must be processed before other formatting)
+            html = html.replace(/```(\w+)?\n?([\s\S]*?)```/g, function(match, lang, code) {
+                const cleanCode = code.trim();
+                return `<pre><code class="language-${lang || 'text'}">${cleanCode}</code></pre>`;
+            });
+            
+            // Inline code (must be before italic processing)
+            html = html.replace(/`([^`\n]+?)`/g, '<code>$1</code>');
+            
+            // Process line by line for better control
+            const lines = html.split('\n');
+            const processedLines = [];
+            let inCodeBlock = false;
+            let listStack = []; // Stack to handle nested lists
+            
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
+                
+                // Skip processing if we're in a code block
+                if (line.includes('<pre><code') || inCodeBlock) {
+                    if (line.includes('<pre><code')) inCodeBlock = true;
+                    if (line.includes('</code></pre>')) inCodeBlock = false;
+                    processedLines.push(line);
+                    continue;
+                }
+                
+                // Calculate indentation level
+                const indent = line.match(/^(\s*)/)[1].length;
+                const trimmedLine = line.trim();
+                
+                // Headers (must be at start of line, ignoring indentation)
+                if (/^#{1,6}\s/.test(trimmedLine)) {
+                    // Close any open lists before header
+                    while (listStack.length > 0) {
+                        const listInfo = listStack.pop();
+                        processedLines.push(`${'  '.repeat(listInfo.indent)}</${listInfo.type}>`);
+                    }
+                    
+                    const level = trimmedLine.match(/^(#{1,6})/)[1].length;
+                    const text = trimmedLine.replace(/^#{1,6}\s+/, '').replace(/\s*#+\s*$/, '');
+                    line = `<h${level}>${text}</h${level}>`;
+                }
+                // Horizontal rules
+                else if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmedLine)) {
+                    // Close any open lists before HR
+                    while (listStack.length > 0) {
+                        const listInfo = listStack.pop();
+                        processedLines.push(`${'  '.repeat(listInfo.indent)}</${listInfo.type}>`);
+                    }
+                    line = '<hr>';
+                }
+                // Blockquotes (preserve indentation)
+                else if (/^>\s/.test(trimmedLine)) {
+                    const text = trimmedLine.replace(/^>\s?/, '');
+                    const indentStr = '  '.repeat(Math.floor(indent / 2));
+                    line = `${indentStr}<blockquote>${text}</blockquote>`;
+                }
+                // Lists (handle nested lists properly)
+                else if (/^[\*\-\+]\s/.test(trimmedLine) || /^\d+\.\s/.test(trimmedLine)) {
+                    const isOrdered = /^\d+\.\s/.test(trimmedLine);
+                    const listType = isOrdered ? 'ol' : 'ul';
+                    const text = trimmedLine.replace(/^([\*\-\+]|\d+\.)\s/, '');
+                    const listIndent = Math.floor(indent / 2);
+                    
+                    // Handle nested lists
+                    while (listStack.length > 0 && listStack[listStack.length - 1].indent >= listIndent) {
+                        const listInfo = listStack.pop();
+                        processedLines.push(`${'  '.repeat(listInfo.indent)}</${listInfo.type}>`);
+                    }
+                    
+                    // Start new list if needed
+                    if (listStack.length === 0 || listStack[listStack.length - 1].indent < listIndent || 
+                        listStack[listStack.length - 1].type !== listType) {
+                        processedLines.push(`${'  '.repeat(listIndent)}<${listType}>`);
+                        listStack.push({ type: listType, indent: listIndent });
+                    }
+                    
+                    line = `${'  '.repeat(listIndent + 1)}<li>${text}</li>`;
+                }
+                // Empty line - might end lists
+                else if (trimmedLine === '') {
+                    // Check if next non-empty line continues the list
+                    let nextNonEmptyIndex = i + 1;
+                    while (nextNonEmptyIndex < lines.length && lines[nextNonEmptyIndex].trim() === '') {
+                        nextNonEmptyIndex++;
+                    }
+                    
+                    if (nextNonEmptyIndex < lines.length) {
+                        const nextLine = lines[nextNonEmptyIndex].trim();
+                        
+                        // If next line is not a list item, close lists
+                        if (!/^([\*\-\+]|\d+\.)\s/.test(nextLine)) {
+                            while (listStack.length > 0) {
+                                const listInfo = listStack.pop();
+                                processedLines.push(`${'  '.repeat(listInfo.indent)}</${listInfo.type}>`);
+                            }
+                        }
+                    } else {
+                        // End of input, close all lists
+                        while (listStack.length > 0) {
+                            const listInfo = listStack.pop();
+                            processedLines.push(`${'  '.repeat(listInfo.indent)}</${listInfo.type}>`);
+                        }
+                    }
+                    line = '';
+                }
+                // Regular content - close lists if not indented properly
+                else if (trimmedLine !== '') {
+                    // If we have open lists and this line isn't indented enough, close them
+                    if (listStack.length > 0) {
+                        const minRequiredIndent = listStack[listStack.length - 1].indent + 1;
+                        if (Math.floor(indent / 2) < minRequiredIndent) {
+                            while (listStack.length > 0) {
+                                const listInfo = listStack.pop();
+                                processedLines.push(`${'  '.repeat(listInfo.indent)}</${listInfo.type}>`);
+                            }
+                        }
+                    }
+                    
+                    // Preserve indentation for regular content
+                    if (indent > 0 && !line.match(/^<(h[1-6]|blockquote)/)) {
+                        const indentStr = '  '.repeat(Math.floor(indent / 2));
+                        line = `${indentStr}${trimmedLine}`;
+                    } else {
+                        line = trimmedLine;
+                    }
+                }
+                
+                processedLines.push(line);
+            }
+            
+            // Close any remaining open lists
+            while (listStack.length > 0) {
+                const listInfo = listStack.pop();
+                processedLines.push(`${'  '.repeat(listInfo.indent)}</${listInfo.type}>`);
+            }
+            
+            html = processedLines.join('\n');
+            
+            // Bold and italic (order matters - bold first to avoid conflicts)
+            html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
+            html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            html = html.replace(/_(.*?)_/g, '<em>$1</em>');
+            
+            // Strikethrough
+            html = html.replace(/~~(.*?)~~/g, '<del>$1</del>');
+            
+            // Links
+            html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+            
+            // Images
+            html = html.replace(/!\[([^\]]*)\]\(([^\)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; height: auto;">');
+            
+            // Tables (improved table handling)
+            const tableRegex = /(\|[^\n]+\|\n?)+/g;
+            html = html.replace(tableRegex, function(match) {
+                const rows = match.trim().split('\n');
+                let tableHtml = '<table>\n';
+                let hasHeaderSeparator = false;
+                
+                // Check if second row is a header separator
+                if (rows.length > 1 && /^[\|\s\-:]+$/.test(rows[1])) {
+                    hasHeaderSeparator = true;
+                }
+                
+                rows.forEach((row, index) => {
+                    if (hasHeaderSeparator && index === 1) {
+                        // Skip separator row
+                        return;
+                    }
+                    
+                    const cells = row.split('|').slice(1, -1).map(cell => cell.trim());
+                    const isHeader = hasHeaderSeparator && index === 0;
+                    const tag = isHeader ? 'th' : 'td';
+                    
+                    if (isHeader) {
+                        tableHtml += '<thead>\n';
+                    } else if (index === (hasHeaderSeparator ? 2 : 0)) {
+                        tableHtml += '<tbody>\n';
+                    }
+                    
+                    tableHtml += '<tr>';
+                    cells.forEach(cell => {
+                        tableHtml += `<${tag}>${cell}</${tag}>`;
+                    });
+                    tableHtml += '</tr>\n';
+                    
+                    if (isHeader) {
+                        tableHtml += '</thead>\n';
+                    }
+                });
+                
+                if (hasHeaderSeparator) {
+                    tableHtml += '</tbody>\n';
+                }
+                tableHtml += '</table>';
+                
+                return tableHtml;
+            });
+            
+            // Process paragraphs - much simpler approach
+            const blocks = html.split(/\n\s*\n/);
+            html = blocks.map(block => {
+                block = block.trim();
+                if (!block) return '';
+                
+                // Don't wrap if already has block elements
+                if (block.match(/^<(h[1-6]|ul|ol|li|blockquote|pre|hr|table|div)/)) {
+                    return block;
+                }
+                
+                // Handle indented content (preserve as preformatted)
+                if (block.match(/^  /)) {
+                    return block;
+                }
+                
+                // For regular text, just wrap in <p> without adding extra <br> tags
+                if (block.trim()) {
+                    return `<p>${block}</p>`;
+                }
+                
+                return '';
+            }).filter(block => block).join('\n\n');
+            
+            // Clean up
+            html = html.replace(/\n{3,}/g, '\n\n');
+            html = html.replace(/^\s+|\s+$/g, '');
+            
+            return html;
+        }
+
+        function convertMarkdown() {
+            const markdownInput = document.getElementById('markdownInput');
+            const richTextOutput = document.getElementById('richTextOutput');
+            const markdown = markdownInput.value;
+            
+            if (!markdown.trim()) {
+                richTextOutput.innerHTML = '<p style="color: #999; font-style: italic;">Enter some markdown text to see the rich text output...</p>';
+                return;
+            }
+            
+            const html = parseMarkdown(markdown);
+            richTextOutput.innerHTML = html;
+        }
+
+        function clearAll() {
+            document.getElementById('markdownInput').value = '';
+            document.getElementById('richTextOutput').innerHTML = '<p style="color: #999; font-style: italic;">Enter some markdown text to see the rich text output...</p>';
+        }
+
+        async function copyRichText() {
+            const richTextOutput = document.getElementById('richTextOutput');
+            
+            try {
+                // Modern clipboard API (preferred)
+                if (navigator.clipboard && navigator.clipboard.write) {
+                    const html = richTextOutput.innerHTML;
+                    const text = richTextOutput.innerText;
+                    
+                    const clipboardItem = new ClipboardItem({
+                        'text/html': new Blob([html], { type: 'text/html' }),
+                        'text/plain': new Blob([text], { type: 'text/plain' })
+                    });
+                    
+                    await navigator.clipboard.write([clipboardItem]);
+                    showCopyNotification('Rich text copied to clipboard!');
+                } else {
+                    // Fallback for older browsers
+                    const range = document.createRange();
+                    range.selectNode(richTextOutput);
+                    window.getSelection().removeAllRanges();
+                    window.getSelection().addRange(range);
+                    
+                    const success = document.execCommand('copy');
+                    window.getSelection().removeAllRanges();
+                    
+                    if (success) {
+                        showCopyNotification('Rich text copied to clipboard!');
+                    } else {
+                        throw new Error('Copy command failed');
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                showCopyNotification('Copy failed - please select and copy manually', true);
+            }
+        }
+
+        function exportHTML() {
+            const richTextOutput = document.getElementById('richTextOutput');
+            const html = richTextOutput.innerHTML;
+            
+            if (!html || html.includes('Enter some markdown text')) {
+                showCopyNotification('No content to export', true);
+                return;
+            }
+            
+            const fullHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exported Markdown</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1, h2, h3, h4, h5, h6 { margin-top: 24px; margin-bottom: 16px; font-weight: 600; }
+        h1 { font-size: 2em; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        h2 { font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+        code { background: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: 'Consolas', 'Monaco', monospace; }
+        pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+        blockquote { border-left: 4px solid #dfe2e5; padding-left: 16px; color: #6a737d; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #dfe2e5; padding: 8px 12px; text-align: left; }
+        th { background: #f6f8fa; font-weight: 600; }
+    </style>
+</head>
+<body>
+${html}
+</body>
+</html>`;
+            
+            const blob = new Blob([fullHTML], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'markdown-export.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showCopyNotification('HTML file exported successfully!');
+        }
+
+        function showCopyNotification(message = 'Rich text copied to clipboard!', isError = false) {
+            const notification = document.getElementById('copyNotification');
+            notification.textContent = message;
+            notification.style.background = isError ? 
+                'rgba(255, 100, 100, 0.15)' : 
+                'rgba(255, 255, 255, 0.15)';
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, isError ? 3000 : 2000);
+        }
+
+        // Auto-convert on input
+        const markdownInput = document.getElementById('markdownInput');
+        markdownInput.addEventListener('input', convertMarkdown);
+
+        // Handle tab key in textarea
+        markdownInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                
+                // Insert tab character
+                this.value = this.value.substring(0, start) + '  ' + this.value.substring(end);
+                
+                // Move cursor
+                this.selectionStart = this.selectionEnd = start + 2;
+                
+                // Trigger conversion
+                convertMarkdown();
+            }
+        });
+
+        // Initial conversion with placeholder text
+        document.addEventListener('DOMContentLoaded', function() {
+            convertMarkdown();
+        });
+
+        // Handle paste events
+        document.getElementById('markdownInput').addEventListener('paste', function() {
+            setTimeout(convertMarkdown, 10);
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl/Cmd + Enter to convert
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                convertMarkdown();
+            }
+            
+            // Ctrl/Cmd + K to clear
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                clearAll();
+                document.getElementById('markdownInput').focus();
+            }
+            
+            // Ctrl/Cmd + Shift + C to copy
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
+                e.preventDefault();
+                copyRichText();
+            }
+        });
+    </script>
+</body>
+</html>
